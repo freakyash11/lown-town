@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../context/AuthContext';
 import { useMatch } from '../context/MatchContext';
-import { getCurrentUserToken, getCurrentMatch, getDailyMatch } from '../services/authService';
+import { getCurrentUserToken } from '../services/firebaseAuth';
+import { matchService } from '../services/api';
 
 const Match = () => {
   const { currentUser, logout } = useAuth();
@@ -31,7 +32,7 @@ const Match = () => {
         const token = await getCurrentUserToken(true);
         
         // Get current match
-        const data = await getCurrentMatch();
+        const data = await matchService.getCurrentMatch();
         
         if (data && data.match && data.matchPartner) {
           setMatch(data.match);
@@ -39,7 +40,7 @@ const Match = () => {
         } else {
           // Try to get a daily match if no current match
           try {
-            const dailyData = await getDailyMatch();
+            const dailyData = await matchService.getDailyMatch();
             if (dailyData && dailyData.match && dailyData.matchPartner) {
               setMatch(dailyData.match);
               setPartner(dailyData.matchPartner);
