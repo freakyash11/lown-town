@@ -13,7 +13,6 @@ import Match from './pages/Match';
 import Conversation from './pages/Conversation';
 import Profile from './pages/Profile';
 import MatchHistory from './pages/MatchHistory';
-import PersonalityQuiz from './pages/PersonalityQuiz';
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
@@ -64,14 +63,6 @@ function App() {
               <Route path="/register" element={<Register />} />
               
               {/* Protected routes */}
-              <Route 
-                path="/personality-quiz" 
-                element={
-                  <ProtectedRoute>
-                    <PersonalityQuiz />
-                  </ProtectedRoute>
-                } 
-              />
               <Route 
                 path="/onboarding" 
                 element={
