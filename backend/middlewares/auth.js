@@ -3,6 +3,16 @@ const { adminAuth } = require('../config/firebase-admin');
 
 // Middleware to protect routes
 const protect = async (req, res, next) => {
+  // Handle preflight OPTIONS request
+  if (req.method === 'OPTIONS') {
+    // Add CORS headers
+    res.header('Access-Control-Allow-Origin', req.headers.origin || 'https://lown-town.vercel.app');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    return res.status(204).end();
+  }
+
   let token;
 
   // Check if token exists in headers
@@ -14,9 +24,13 @@ const protect = async (req, res, next) => {
       // Get token from header
       token = req.headers.authorization.split(' ')[1];
       
+      console.log('Verifying token:', token.substring(0, 10) + '...');
+      
       // Verify Firebase ID token
       const decodedToken = await adminAuth.verifyIdToken(token);
       const uid = decodedToken.uid;
+      
+      console.log('Token verified for UID:', uid);
       
       // Get user from Firestore
       const user = await User.findById(uid);

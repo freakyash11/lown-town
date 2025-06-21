@@ -1,6 +1,6 @@
-import { io } from 'socket.io-client';
+const io = require('socket.io-client');
 
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://lown-town-dwky.vercel.app';
 
 let socket;
 

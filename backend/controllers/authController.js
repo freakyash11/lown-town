@@ -308,6 +308,12 @@ const updateUserProfile = async (req, res) => {
 // @access  Private
 const completeOnboarding = async (req, res) => {
   try {
+    console.log('Onboarding request received:', {
+      headers: req.headers,
+      origin: req.headers.origin,
+      method: req.method
+    });
+    
     const {
       personalityTraits,
       emotionalIntelligence,
@@ -318,8 +324,19 @@ const completeOnboarding = async (req, res) => {
       bio
     } = req.body;
 
+    console.log('Onboarding data received:', {
+      hasPersonalityTraits: !!personalityTraits,
+      hasEmotionalIntelligence: !!emotionalIntelligence,
+      hasRelationshipValues: !!relationshipValues,
+      hasLifeGoals: !!lifeGoals,
+      hasCommunicationStyle: !!communicationStyle,
+      hasInterests: !!interests,
+      hasBio: !!bio
+    });
+
     // User is already attached to req by the auth middleware
     const user = req.user;
+    console.log('User from auth middleware:', user ? user._id : 'No user found');
 
     if (user) {
       // Update user profile with onboarding data
@@ -335,8 +352,14 @@ const completeOnboarding = async (req, res) => {
       user.userState = 'available';
       user.stateTimestamps.availableForMatchingSince = new Date();
 
+      console.log('Saving updated user data');
       const updatedUser = await user.save();
+      console.log('User data saved successfully');
 
+      // Set CORS headers explicitly
+      res.header('Access-Control-Allow-Origin', req.headers.origin || 'https://lown-town.vercel.app');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      
       res.json({
         _id: updatedUser._id,
         name: updatedUser.name,
@@ -352,6 +375,7 @@ const completeOnboarding = async (req, res) => {
         message: 'Onboarding completed successfully'
       });
     } else {
+      console.error('User not found in onboarding request');
       res.status(404).json({ message: 'User not found' });
     }
   } catch (error) {
