@@ -1,10 +1,10 @@
 import axios from 'axios';
 import { getCurrentUserToken } from './firebaseAuth';
 
-// API URL is now relative since we're hosting backend and frontend together
-const API_URL = '/api';
+// API base URL
+const API_URL = process.env.REACT_APP_API_URL || '';
 
-// Create axios instance with base URL
+// Create axios instance
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -12,93 +12,52 @@ const api = axios.create({
   }
 });
 
-// Track if we're currently refreshing the token
-let isRefreshingToken = false;
-let tokenRefreshPromise = null;
-
-// Function to get a fresh token
-const getFreshToken = async () => {
-  if (isRefreshingToken) {
-    return tokenRefreshPromise;
-  }
-  
-  isRefreshingToken = true;
-  tokenRefreshPromise = getCurrentUserToken(true); // Force refresh
-  
-  try {
-    const token = await tokenRefreshPromise;
-    return token;
-  } finally {
-    isRefreshingToken = false;
-    tokenRefreshPromise = null;
-  }
-};
-
-// Add request interceptor to include Firebase auth token in requests
+// Request interceptor
 api.interceptors.request.use(
   async (config) => {
     try {
-      // Get token from localStorage first for speed
-      let token = localStorage.getItem('userToken');
-      
-      // If no token in localStorage or this is an auth endpoint, get fresh token
-      if (!token || config.url.includes('/auth/')) {
-        token = await getFreshToken();
-      }
+      // Get token from localStorage or refresh if needed
+      const token = await getCurrentUserToken(true);
       
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-        // Update token in localStorage
-        localStorage.setItem('userToken', token);
       }
+      
+      return config;
     } catch (error) {
-      console.error('Error getting Firebase token:', error);
+      console.error('API request interceptor error:', error);
+      return Promise.reject(error);
     }
-    return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    return Promise.reject(error);
+  }
 );
 
-// Add response interceptor to handle authentication errors
+// Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
     
-    // If error is 401 and we haven't tried to refresh the token yet
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+    // If error is 401 and we haven't tried to refresh token yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       
       try {
-        // Try to get a fresh token
-        const token = await getFreshToken();
+        // Force refresh token
+        const token = await getCurrentUserToken(true);
         
         if (token) {
-          // Update the token in the request
+          // Update header and retry
           originalRequest.headers.Authorization = `Bearer ${token}`;
-          // Update token in localStorage
-          localStorage.setItem('userToken', token);
-          // Retry the request
           return api(originalRequest);
         }
       } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError);
-        
-        // If token refresh fails, redirect to login
-        if (window.location.pathname !== '/login') {
-          console.log('Redirecting to login due to authentication failure');
-          window.location.href = '/login';
-        }
-      }
-    }
-    
-    // For other errors, or if token refresh failed
-    if (error.response && error.response.status === 401) {
-      console.error('Authentication error:', error.response.data);
-      // Redirect to login if not already there
-      if (window.location.pathname !== '/login') {
-        console.log('Redirecting to login due to authentication failure');
-        window.location.href = '/login';
+        console.error('Token refresh error:', refreshError);
+        // If refresh fails, let the component handle the error
       }
     }
     
@@ -106,39 +65,189 @@ api.interceptors.response.use(
   }
 );
 
-// Authentication services
+// Auth service
 export const authService = {
-  register: (userData) => api.post('/auth/register', userData),
-  login: (credentials) => api.post('/auth/login', credentials),
-  getProfile: () => api.get('/auth/profile'),
-  updateProfile: (userData) => api.put('/auth/profile', userData),
-  completeOnboarding: (onboardingData) => api.post('/auth/onboarding', onboardingData),
-  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
-  logout: () => api.post('/auth/logout')
+  // Register user
+  register: (userData) => {
+    return api.post('/api/auth/register', userData);
+  },
+  
+  // Login user
+  login: (credentials) => {
+    return api.post('/api/auth/login', credentials);
+  },
+  
+  // Get user profile
+  getProfile: () => {
+    return api.get('/api/auth/profile');
+  },
+  
+  // Update user profile
+  updateProfile: (userData) => {
+    return api.put('/api/auth/profile', userData);
+  },
+  
+  // Complete onboarding
+  completeOnboarding: (onboardingData) => {
+    return api.post('/api/auth/onboarding', onboardingData);
+  },
+  
+  // Forgot password
+  forgotPassword: (email) => {
+    return api.post('/api/auth/forgot-password', { email });
+  },
+  
+  // Logout
+  logout: () => {
+    return api.post('/api/auth/logout');
+  }
 };
 
-// Match services
+// Match service
 export const matchService = {
-  getDailyMatch: () => api.get('/matches/daily'),
-  getCurrentMatch: () => api.get('/matches/current'),
-  pinMatch: (matchId) => api.put(`/matches/${matchId}/pin`),
-  unpinMatch: (matchId, feedback) => api.put(`/matches/${matchId}/unpin`, { feedback }),
-  getMatchHistory: () => api.get('/matches/history'),
-  getMatchFeedback: (matchId) => api.get(`/matches/${matchId}/feedback`)
+  // Get daily match
+  getDailyMatch: async () => {
+    try {
+      const response = await api.get('/api/matches/daily');
+      return response.data;
+    } catch (error) {
+      console.error('Get daily match error:', error);
+      throw error;
+    }
+  },
+  
+  // Get current match
+  getCurrentMatch: async () => {
+    try {
+      const response = await api.get('/api/matches/current');
+      return response.data;
+    } catch (error) {
+      console.error('Get current match error:', error);
+      throw error;
+    }
+  },
+  
+  // Get match history
+  getMatchHistory: async () => {
+    try {
+      const response = await api.get('/api/matches/history');
+      return response.data;
+    } catch (error) {
+      console.error('Get match history error:', error);
+      throw error;
+    }
+  },
+  
+  // Pin match
+  pinMatch: async (matchId) => {
+    try {
+      const response = await api.put(`/api/matches/pin?matchId=${matchId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Pin match error:', error);
+      throw error;
+    }
+  },
+  
+  // Unpin match
+  unpinMatch: async (matchId, feedback) => {
+    try {
+      const response = await api.put(`/api/matches/unpin?matchId=${matchId}`, feedback);
+      return response.data;
+    } catch (error) {
+      console.error('Unpin match error:', error);
+      throw error;
+    }
+  },
+  
+  // Get match feedback
+  getMatchFeedback: async (matchId) => {
+    try {
+      const response = await api.get(`/api/matches/${matchId}/feedback`);
+      return response.data;
+    } catch (error) {
+      console.error('Get match feedback error:', error);
+      throw error;
+    }
+  }
 };
 
-// Message services
+// Message service
 export const messageService = {
-  getMessages: (userId) => api.get(`/messages/${userId}`),
-  sendMessage: (messageData) => api.post('/messages', messageData),
-  markAsRead: (userId) => api.put(`/messages/read/${userId}`),
-  getUnreadCount: () => api.get('/messages/unread'),
-  checkVideoCallStatus: (userId) => api.get(`/messages/video-status/${userId}`)
+  // Get messages for match
+  getMessages: async (matchId) => {
+    try {
+      const response = await api.get(`/api/messages/${matchId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get messages error:', error);
+      throw error;
+    }
+  },
+  
+  // Send message
+  sendMessage: async (matchId, messageData) => {
+    try {
+      const response = await api.post(`/api/messages/${matchId}`, messageData);
+      return response.data;
+    } catch (error) {
+      console.error('Send message error:', error);
+      throw error;
+    }
+  },
+  
+  // Mark message as read
+  markAsRead: async (userId) => {
+    try {
+      const response = await api.put(`/api/messages/read/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Mark message as read error:', error);
+      throw error;
+    }
+  },
+  
+  // Get unread message count
+  getUnreadCount: async () => {
+    try {
+      const response = await api.get('/api/messages/unread');
+      return response.data;
+    } catch (error) {
+      console.error('Get unread message count error:', error);
+      throw error;
+    }
+  },
+  
+  // Check video call status
+  checkVideoCallStatus: async (userId) => {
+    try {
+      const response = await api.get(`/api/messages/video-status/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Check video call status error:', error);
+      throw error;
+    }
+  }
 };
 
-// User services
+// User service
 export const userService = {
-  getUserState: () => api.get('/users/state')
+  // Get user state
+  getUserState: async () => {
+    try {
+      const response = await api.get('/api/users/state');
+      return response.data;
+    } catch (error) {
+      console.error('Get user state error:', error);
+      throw error;
+    }
+  }
 };
 
-export default api; 
+// Export services
+export default {
+  auth: authService,
+  match: matchService,
+  message: messageService,
+  user: userService
+}; 

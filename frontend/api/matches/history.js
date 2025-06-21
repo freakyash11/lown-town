@@ -1,5 +1,5 @@
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, query, where, getDocs, doc, getDoc, limit } = require('firebase/firestore');
+const { getFirestore, collection, query, where, getDocs, doc, getDoc } = require('firebase/firestore');
 const admin = require('firebase-admin');
 
 // Firebase configuration
@@ -53,7 +53,7 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Handle GET request for current match
+  // Handle GET request for match history
   if (req.method === 'GET') {
     try {
       // Get token from authorization header
@@ -68,64 +68,74 @@ module.exports = async (req, res) => {
       const decodedToken = await admin.auth().verifyIdToken(token);
       const uid = decodedToken.uid;
       
-      console.log('Getting current match for user:', uid);
-      
-      // Get current user data
+      // Get user data from Firestore
       const userDoc = await getDoc(doc(db, 'users', uid));
       
       if (!userDoc.exists()) {
         return res.status(404).json({ message: 'User not found' });
       }
       
-      // Check if user has an active match
+      // Get match history for this user
       const matchesRef = collection(db, 'matches');
-      const activeMatchQuery = query(
+      const matchQuery = query(
         matchesRef,
-        where('users', 'array-contains', uid),
-        where('status', '==', 'active'),
-        limit(1)
+        where('users', 'array-contains', uid)
       );
       
-      const activeMatchSnapshot = await getDocs(activeMatchQuery);
+      const matchesSnapshot = await getDocs(matchQuery);
       
-      if (activeMatchSnapshot.empty) {
-        console.log('No active match found for user:', uid);
-        return res.status(200).json({ message: 'No active match found' });
+      if (matchesSnapshot.empty) {
+        return res.status(200).json([]);
       }
       
-      // Get the active match
-      let activeMatch = null;
-      activeMatchSnapshot.forEach(doc => {
-        activeMatch = {
+      // Process matches and get partner info
+      const matches = [];
+      const partnerPromises = [];
+      
+      matchesSnapshot.forEach(doc => {
+        const matchData = doc.data();
+        const match = {
           _id: doc.id,
-          ...doc.data()
+          ...matchData,
+          partner: null
         };
+        
+        // Find partner ID
+        const partnerId = matchData.users.find(id => id !== uid);
+        
+        // Add promise to get partner info
+        partnerPromises.push(
+          getDoc(doc(db, 'users', partnerId))
+            .then(partnerDoc => {
+              if (partnerDoc.exists()) {
+                const partnerData = partnerDoc.data();
+                match.partner = {
+                  _id: partnerId,
+                  name: partnerData.name,
+                  bio: partnerData.bio,
+                  interests: partnerData.interests
+                };
+              }
+              return match;
+            })
+        );
+        
+        matches.push(match);
       });
       
-      console.log('Found active match:', activeMatch._id);
+      // Wait for all partner info to be fetched
+      await Promise.all(partnerPromises);
       
-      // Get the match partner
-      const matchPartnerId = activeMatch.users.find(id => id !== uid);
-      const matchPartnerDoc = await getDoc(doc(db, 'users', matchPartnerId));
-      
-      if (!matchPartnerDoc.exists()) {
-        return res.status(404).json({ message: 'Match partner not found' });
-      }
-      
-      const matchPartnerData = matchPartnerDoc.data();
-      const matchPartner = {
-        _id: matchPartnerId,
-        name: matchPartnerData.name,
-        bio: matchPartnerData.bio || '',
-        interests: matchPartnerData.interests || []
-      };
-      
-      return res.status(200).json({
-        match: activeMatch,
-        matchPartner: matchPartner
+      // Sort by creation date (newest first)
+      matches.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt.seconds * 1000) : new Date(0);
+        const dateB = b.createdAt ? new Date(b.createdAt.seconds * 1000) : new Date(0);
+        return dateB - dateA;
       });
+      
+      return res.status(200).json(matches);
     } catch (error) {
-      console.error('Get current match error:', error);
+      console.error('Get match history error:', error);
       
       // If token verification fails, return 401
       if (error.code === 'auth/id-token-expired' || 

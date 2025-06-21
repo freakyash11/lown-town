@@ -30,7 +30,7 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Onboarded route component - ensures user has completed personality quiz
+// Onboarded route component - ensures user has completed onboarding
 const OnboardedRoute = ({ children }) => {
   const { currentUser, loading } = useAuth();
 
@@ -42,15 +42,10 @@ const OnboardedRoute = ({ children }) => {
     return <Navigate to="/login" />;
   }
 
-  // Check if user has completed personality quiz by checking if they have personality traits
-  // Only redirect if we're sure the user hasn't completed the quiz
-  if (currentUser.personalityTraits === undefined || 
-      currentUser.emotionalIntelligence === undefined || 
-      currentUser.relationshipValues === undefined || 
-      currentUser.lifeGoals === undefined || 
-      currentUser.communicationStyle === undefined) {
-    console.log("User hasn't completed personality quiz, redirecting");
-    return <Navigate to="/personality-quiz" />;
+  // Check if user needs onboarding
+  if (currentUser.needsOnboarding === true) {
+    console.log("User needs onboarding, redirecting");
+    return <Navigate to="/onboarding" />;
   }
 
   return children;
@@ -88,41 +83,41 @@ function App() {
               <Route 
                 path="/dashboard" 
                 element={
-                  <OnboardedRoute>
+                  <ProtectedRoute>
                     <Dashboard />
-                  </OnboardedRoute>
+                  </ProtectedRoute>
                 } 
               />
               <Route 
                 path="/match" 
                 element={
-                  <OnboardedRoute>
+                  <ProtectedRoute>
                     <Match />
-                  </OnboardedRoute>
+                  </ProtectedRoute>
                 } 
               />
               <Route 
                 path="/conversation/:matchId" 
                 element={
-                  <OnboardedRoute>
+                  <ProtectedRoute>
                     <Conversation />
-                  </OnboardedRoute>
+                  </ProtectedRoute>
                 } 
               />
               <Route 
                 path="/profile" 
                 element={
-                  <OnboardedRoute>
+                  <ProtectedRoute>
                     <Profile />
-                  </OnboardedRoute>
+                  </ProtectedRoute>
                 } 
               />
               <Route 
                 path="/history" 
                 element={
-                  <OnboardedRoute>
+                  <ProtectedRoute>
                     <MatchHistory />
-                  </OnboardedRoute>
+                  </ProtectedRoute>
                 } 
               />
               

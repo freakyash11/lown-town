@@ -51,38 +51,56 @@ if (!admin.apps.length) {
 // Simple compatibility algorithm
 const calculateCompatibility = (user1, user2) => {
   // Calculate compatibility based on personality traits
-  let compatibilityScore = 0;
+  let compatibilityScore = 50; // Start with a base score
   
   // Personality traits compatibility (opposites attract)
   if (user1.personalityTraits && user2.personalityTraits) {
     const traits = ['openness', 'conscientiousness', 'extraversion', 'agreeableness', 'neuroticism'];
+    let traitPoints = 0;
+    let traitCount = 0;
+    
     traits.forEach(trait => {
-      if (user1.personalityTraits[trait] && user2.personalityTraits[trait]) {
+      if (user1.personalityTraits[trait] !== undefined && user2.personalityTraits[trait] !== undefined) {
         // Traits closer to middle (5) are more compatible
         const diff = Math.abs(user1.personalityTraits[trait] - user2.personalityTraits[trait]);
-        compatibilityScore += (10 - diff) / 2; // Max 5 points per trait
+        traitPoints += (10 - diff) / 2; // Max 5 points per trait
+        traitCount++;
       }
     });
+    
+    if (traitCount > 0) {
+      compatibilityScore += (traitPoints / traitCount) * 2; // Normalize and add up to 10 points
+    }
   }
   
   // Relationship values compatibility (similar values are better)
   if (user1.relationshipValues && user2.relationshipValues) {
     const values = ['commitment', 'loyalty', 'honesty', 'communication', 'independence', 'affection'];
+    let valuePoints = 0;
+    let valueCount = 0;
+    
     values.forEach(value => {
-      if (user1.relationshipValues[value] && user2.relationshipValues[value]) {
+      if (user1.relationshipValues[value] !== undefined && user2.relationshipValues[value] !== undefined) {
         const diff = Math.abs(user1.relationshipValues[value] - user2.relationshipValues[value]);
-        compatibilityScore += (10 - diff) / 2; // Max 5 points per value
+        valuePoints += (10 - diff) / 2; // Max 5 points per value
+        valueCount++;
       }
     });
+    
+    if (valueCount > 0) {
+      compatibilityScore += (valuePoints / valueCount) * 2; // Normalize and add up to 10 points
+    }
   }
   
   // Interests compatibility (shared interests are better)
-  if (user1.interests && user2.interests) {
-    const sharedInterests = user1.interests.filter(interest => user2.interests.includes(interest));
-    compatibilityScore += sharedInterests.length * 5; // 5 points per shared interest
+  if (user1.interests && user2.interests && Array.isArray(user1.interests) && Array.isArray(user2.interests)) {
+    const sharedInterests = user1.interests.filter(interest => 
+      user2.interests.includes(interest)
+    );
+    compatibilityScore += Math.min(30, sharedInterests.length * 5); // Up to 30 points for shared interests
   }
   
-  return Math.min(100, compatibilityScore);
+  return Math.min(100, Math.max(0, compatibilityScore));
 };
 
 module.exports = async (req, res) => {
@@ -115,6 +133,8 @@ module.exports = async (req, res) => {
       const decodedToken = await admin.auth().verifyIdToken(token);
       const uid = decodedToken.uid;
       
+      console.log('User ID:', uid);
+      
       // Get current user data
       const userDoc = await getDoc(doc(db, 'users', uid));
       
@@ -123,6 +143,7 @@ module.exports = async (req, res) => {
       }
       
       const currentUser = userDoc.data();
+      console.log('Current user data:', currentUser.name);
       
       // Check if user already has an active match
       const matchesRef = collection(db, 'matches');
@@ -146,6 +167,8 @@ module.exports = async (req, res) => {
             ...doc.data()
           };
         });
+        
+        console.log('Found active match:', activeMatch._id);
         
         // Get the match partner
         const matchPartnerId = activeMatch.users.find(id => id !== uid);
@@ -172,70 +195,88 @@ module.exports = async (req, res) => {
       const usersRef = collection(db, 'users');
       let matchQuery;
       
-      // Filter by gender preference if specified
-      if (currentUser.interestedIn && currentUser.interestedIn !== 'not specified') {
-        matchQuery = query(
-          usersRef, 
-          where('gender', '==', currentUser.interestedIn),
-          where('userState', '==', 'available')
-        );
-      } else {
-        matchQuery = query(
-          usersRef, 
-          where('userState', '==', 'available')
-        );
-      }
-      
-      const potentialMatchesSnapshot = await getDocs(matchQuery);
-      
-      // Filter out the current user and calculate compatibility
-      const potentialMatches = [];
-      potentialMatchesSnapshot.forEach(matchDoc => {
-        const matchData = matchDoc.data();
-        if (matchDoc.id !== uid) {
-          const compatibilityScore = calculateCompatibility(currentUser, matchData);
-          potentialMatches.push({
-            ...matchData,
-            _id: matchDoc.id,
-            compatibilityScore
-          });
+      try {
+        // Filter by gender preference if specified
+        if (currentUser.interestedIn && currentUser.interestedIn !== 'not specified') {
+          matchQuery = query(
+            usersRef, 
+            where('gender', '==', currentUser.interestedIn),
+            where('userState', '==', 'available')
+          );
+        } else {
+          matchQuery = query(
+            usersRef, 
+            where('userState', '==', 'available')
+          );
         }
-      });
-      
-      // Sort by compatibility score and get the top match
-      potentialMatches.sort((a, b) => b.compatibilityScore - a.compatibilityScore);
-      
-      if (potentialMatches.length === 0) {
-        return res.status(404).json({ message: 'No matches available at this time' });
-      }
-      
-      const dailyMatch = potentialMatches[0];
-      
-      // Create a new match in Firestore
-      const newMatch = {
-        users: [uid, dailyMatch._id],
-        status: 'active',
-        createdAt: serverTimestamp(),
-        compatibilityScore: dailyMatch.compatibilityScore,
-        pinnedBy: []
-      };
-      
-      const matchRef = await addDoc(collection(db, 'matches'), newMatch);
-      
-      // Return match data
-      return res.status(200).json({
-        match: {
-          _id: matchRef.id,
-          ...newMatch,
-          createdAt: new Date()
-        },
-        matchPartner: {
-          _id: dailyMatch._id,
-          name: dailyMatch.name,
-          bio: dailyMatch.bio,
-          interests: dailyMatch.interests
+        
+        const potentialMatchesSnapshot = await getDocs(matchQuery);
+        console.log('Found potential matches:', potentialMatchesSnapshot.size);
+        
+        // Filter out the current user and calculate compatibility
+        const potentialMatches = [];
+        potentialMatchesSnapshot.forEach(matchDoc => {
+          const matchData = matchDoc.data();
+          if (matchDoc.id !== uid) {
+            try {
+              const compatibilityScore = calculateCompatibility(currentUser, matchData);
+              potentialMatches.push({
+                ...matchData,
+                _id: matchDoc.id,
+                compatibilityScore
+              });
+            } catch (err) {
+              console.error('Error calculating compatibility for user:', matchDoc.id, err);
+              // Skip this potential match
+            }
+          }
+        });
+        
+        console.log('Filtered potential matches:', potentialMatches.length);
+        
+        // Sort by compatibility score and get the top match
+        potentialMatches.sort((a, b) => b.compatibilityScore - a.compatibilityScore);
+        
+        if (potentialMatches.length === 0) {
+          return res.status(200).json({ message: 'No matches available at this time' });
         }
-      });
+        
+        const dailyMatch = potentialMatches[0];
+        console.log('Selected daily match:', dailyMatch._id, 'with score:', dailyMatch.compatibilityScore);
+        
+        // Create a new match in Firestore
+        const newMatch = {
+          users: [uid, dailyMatch._id],
+          status: 'active',
+          createdAt: serverTimestamp(),
+          compatibilityScore: dailyMatch.compatibilityScore,
+          pinnedBy: []
+        };
+        
+        const matchRef = await addDoc(collection(db, 'matches'), newMatch);
+        console.log('Created new match with ID:', matchRef.id);
+        
+        // Return match data
+        return res.status(200).json({
+          match: {
+            _id: matchRef.id,
+            ...newMatch,
+            createdAt: new Date()
+          },
+          matchPartner: {
+            _id: dailyMatch._id,
+            name: dailyMatch.name,
+            bio: dailyMatch.bio,
+            interests: dailyMatch.interests
+          }
+        });
+      } catch (err) {
+        console.error('Error in match finding process:', err);
+        return res.status(500).json({ 
+          message: 'Error finding matches', 
+          error: err.message 
+        });
+      }
     } catch (error) {
       console.error('Get daily match error:', error);
       

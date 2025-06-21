@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../context/AuthContext';
 import { useMatch } from '../context/MatchContext';
+import { getCurrentUserToken, getCurrentMatch, getDailyMatch } from '../services/authService';
 
 const Match = () => {
   const { currentUser, logout } = useAuth();
@@ -19,6 +20,62 @@ const Match = () => {
       navigate('/dashboard');
     }
   }, [currentMatch, matchLoading, navigate]);
+  
+  // Load match data
+  useEffect(() => {
+    const loadMatchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Get fresh token
+        const token = await getCurrentUserToken(true);
+        
+        // Get current match
+        const data = await getCurrentMatch();
+        
+        if (data && data.match && data.matchPartner) {
+          setMatch(data.match);
+          setPartner(data.matchPartner);
+        } else {
+          // Try to get a daily match if no current match
+          try {
+            const dailyData = await getDailyMatch();
+            if (dailyData && dailyData.match && dailyData.matchPartner) {
+              setMatch(dailyData.match);
+              setPartner(dailyData.matchPartner);
+            } else if (dailyData && dailyData.message) {
+              setError(dailyData.message);
+            }
+          } catch (err) {
+            console.error('Error getting daily match:', err);
+            if (err.response?.status === 401) {
+              // Token expired, redirect to login
+              alert('Your session has expired. Please log in again.');
+              logout();
+              navigate('/login');
+            } else {
+              setError(err.response?.data?.message || 'Failed to get match');
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error loading match data:', err);
+        
+        if (err.response?.status === 401) {
+          // Token expired, redirect to login
+          alert('Your session has expired. Please log in again.');
+          logout();
+          navigate('/login');
+        } else {
+          setError(err.response?.data?.message || 'Failed to load match data');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadMatchData();
+  }, [navigate, logout]);
   
   // Handle pin match
   const handlePinMatch = async () => {

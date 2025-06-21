@@ -1,5 +1,5 @@
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, query, where, getDocs, doc, getDoc, limit } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, updateDoc, arrayUnion } = require('firebase/firestore');
 const admin = require('firebase-admin');
 
 // Firebase configuration
@@ -42,7 +42,7 @@ module.exports = async (req, res) => {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'PUT,OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
@@ -53,8 +53,8 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Handle GET request for current match
-  if (req.method === 'GET') {
+  // Handle PUT request for pinning a match
+  if (req.method === 'PUT') {
     try {
       // Get token from authorization header
       const authHeader = req.headers.authorization;
@@ -68,64 +68,47 @@ module.exports = async (req, res) => {
       const decodedToken = await admin.auth().verifyIdToken(token);
       const uid = decodedToken.uid;
       
-      console.log('Getting current match for user:', uid);
-      
-      // Get current user data
-      const userDoc = await getDoc(doc(db, 'users', uid));
-      
-      if (!userDoc.exists()) {
-        return res.status(404).json({ message: 'User not found' });
+      // Get match ID from URL
+      const matchId = req.query.matchId;
+      if (!matchId) {
+        return res.status(400).json({ message: 'Match ID is required' });
       }
       
-      // Check if user has an active match
-      const matchesRef = collection(db, 'matches');
-      const activeMatchQuery = query(
-        matchesRef,
-        where('users', 'array-contains', uid),
-        where('status', '==', 'active'),
-        limit(1)
-      );
+      // Get match data from Firestore
+      const matchRef = doc(db, 'matches', matchId);
+      const matchDoc = await getDoc(matchRef);
       
-      const activeMatchSnapshot = await getDocs(activeMatchQuery);
-      
-      if (activeMatchSnapshot.empty) {
-        console.log('No active match found for user:', uid);
-        return res.status(200).json({ message: 'No active match found' });
+      if (!matchDoc.exists()) {
+        return res.status(404).json({ message: 'Match not found' });
       }
       
-      // Get the active match
-      let activeMatch = null;
-      activeMatchSnapshot.forEach(doc => {
-        activeMatch = {
-          _id: doc.id,
-          ...doc.data()
-        };
-      });
+      const matchData = matchDoc.data();
       
-      console.log('Found active match:', activeMatch._id);
-      
-      // Get the match partner
-      const matchPartnerId = activeMatch.users.find(id => id !== uid);
-      const matchPartnerDoc = await getDoc(doc(db, 'users', matchPartnerId));
-      
-      if (!matchPartnerDoc.exists()) {
-        return res.status(404).json({ message: 'Match partner not found' });
+      // Check if user is part of this match
+      if (!matchData.users.includes(uid)) {
+        return res.status(403).json({ message: 'Not authorized to pin this match' });
       }
       
-      const matchPartnerData = matchPartnerDoc.data();
-      const matchPartner = {
-        _id: matchPartnerId,
-        name: matchPartnerData.name,
-        bio: matchPartnerData.bio || '',
-        interests: matchPartnerData.interests || []
-      };
+      // Add user to pinnedBy array if not already there
+      if (!matchData.pinnedBy || !matchData.pinnedBy.includes(uid)) {
+        await updateDoc(matchRef, {
+          pinnedBy: arrayUnion(uid)
+        });
+      }
+      
+      // Get updated match data
+      const updatedMatchDoc = await getDoc(matchRef);
+      const updatedMatchData = updatedMatchDoc.data();
       
       return res.status(200).json({
-        match: activeMatch,
-        matchPartner: matchPartner
+        match: {
+          _id: matchId,
+          ...updatedMatchData
+        },
+        message: 'Match pinned successfully'
       });
     } catch (error) {
-      console.error('Get current match error:', error);
+      console.error('Pin match error:', error);
       
       // If token verification fails, return 401
       if (error.code === 'auth/id-token-expired' || 

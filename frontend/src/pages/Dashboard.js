@@ -42,6 +42,7 @@ const Dashboard = () => {
   const handleGetMatch = async () => {
     try {
       console.log('Getting daily match...');
+      setStateLoading(true);
       const data = await getDailyMatch();
       console.log('Daily match response:', data);
       
@@ -52,16 +53,22 @@ const Dashboard = () => {
       }
     } catch (err) {
       console.error('Error getting daily match:', err);
+      console.error('Error details:', err.response?.data || 'No response data');
       
       // Check if it's an authentication error
       if (err.response?.status === 401) {
         alert('Your session has expired. Please log in again.');
         logout();
         navigate('/login');
+      } else if (err.response?.status === 500) {
+        // Server error
+        alert('Server error occurred. Please try again later.');
       } else {
         // For other errors
         alert(`Failed to get match: ${err.response?.data?.message || err.message}`);
       }
+    } finally {
+      setStateLoading(false);
     }
   };
   
