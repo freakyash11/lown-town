@@ -50,57 +50,63 @@ if (!admin.apps.length) {
 
 // Simple compatibility algorithm
 const calculateCompatibility = (user1, user2) => {
-  // Calculate compatibility based on personality traits
-  let compatibilityScore = 50; // Start with a base score
-  
-  // Personality traits compatibility (opposites attract)
-  if (user1.personalityTraits && user2.personalityTraits) {
-    const traits = ['openness', 'conscientiousness', 'extraversion', 'agreeableness', 'neuroticism'];
-    let traitPoints = 0;
-    let traitCount = 0;
+  try {
+    // Calculate compatibility based on personality traits
+    let compatibilityScore = 50; // Start with a base score
     
-    traits.forEach(trait => {
-      if (user1.personalityTraits[trait] !== undefined && user2.personalityTraits[trait] !== undefined) {
-        // Traits closer to middle (5) are more compatible
-        const diff = Math.abs(user1.personalityTraits[trait] - user2.personalityTraits[trait]);
-        traitPoints += (10 - diff) / 2; // Max 5 points per trait
-        traitCount++;
+    // Personality traits compatibility (opposites attract)
+    if (user1.personalityTraits && user2.personalityTraits) {
+      const traits = ['openness', 'conscientiousness', 'extraversion', 'agreeableness', 'neuroticism'];
+      let traitPoints = 0;
+      let traitCount = 0;
+      
+      traits.forEach(trait => {
+        if (user1.personalityTraits[trait] !== undefined && user2.personalityTraits[trait] !== undefined) {
+          // Traits closer to middle (5) are more compatible
+          const diff = Math.abs(user1.personalityTraits[trait] - user2.personalityTraits[trait]);
+          traitPoints += (10 - diff) / 2; // Max 5 points per trait
+          traitCount++;
+        }
+      });
+      
+      if (traitCount > 0) {
+        compatibilityScore += (traitPoints / traitCount) * 2; // Normalize and add up to 10 points
       }
-    });
-    
-    if (traitCount > 0) {
-      compatibilityScore += (traitPoints / traitCount) * 2; // Normalize and add up to 10 points
     }
-  }
-  
-  // Relationship values compatibility (similar values are better)
-  if (user1.relationshipValues && user2.relationshipValues) {
-    const values = ['commitment', 'loyalty', 'honesty', 'communication', 'independence', 'affection'];
-    let valuePoints = 0;
-    let valueCount = 0;
     
-    values.forEach(value => {
-      if (user1.relationshipValues[value] !== undefined && user2.relationshipValues[value] !== undefined) {
-        const diff = Math.abs(user1.relationshipValues[value] - user2.relationshipValues[value]);
-        valuePoints += (10 - diff) / 2; // Max 5 points per value
-        valueCount++;
+    // Relationship values compatibility (similar values are better)
+    if (user1.relationshipValues && user2.relationshipValues) {
+      const values = ['commitment', 'loyalty', 'honesty', 'communication', 'independence', 'affection'];
+      let valuePoints = 0;
+      let valueCount = 0;
+      
+      values.forEach(value => {
+        if (user1.relationshipValues[value] !== undefined && user2.relationshipValues[value] !== undefined) {
+          const diff = Math.abs(user1.relationshipValues[value] - user2.relationshipValues[value]);
+          valuePoints += (10 - diff) / 2; // Max 5 points per value
+          valueCount++;
+        }
+      });
+      
+      if (valueCount > 0) {
+        compatibilityScore += (valuePoints / valueCount) * 2; // Normalize and add up to 10 points
       }
-    });
-    
-    if (valueCount > 0) {
-      compatibilityScore += (valuePoints / valueCount) * 2; // Normalize and add up to 10 points
     }
+    
+    // Interests compatibility (shared interests are better)
+    if (user1.interests && user2.interests && Array.isArray(user1.interests) && Array.isArray(user2.interests)) {
+      const sharedInterests = user1.interests.filter(interest => 
+        user2.interests.includes(interest)
+      );
+      compatibilityScore += Math.min(30, sharedInterests.length * 5); // Up to 30 points for shared interests
+    }
+    
+    return Math.min(100, Math.max(0, compatibilityScore));
+  } catch (error) {
+    console.error('Error calculating compatibility:', error);
+    // Return a default score if calculation fails
+    return 50;
   }
-  
-  // Interests compatibility (shared interests are better)
-  if (user1.interests && user2.interests && Array.isArray(user1.interests) && Array.isArray(user2.interests)) {
-    const sharedInterests = user1.interests.filter(interest => 
-      user2.interests.includes(interest)
-    );
-    compatibilityScore += Math.min(30, sharedInterests.length * 5); // Up to 30 points for shared interests
-  }
-  
-  return Math.min(100, Math.max(0, compatibilityScore));
 };
 
 module.exports = async (req, res) => {

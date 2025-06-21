@@ -62,7 +62,7 @@ const Dashboard = () => {
         navigate('/login');
       } else if (err.response?.status === 500) {
         // Server error
-        alert('Server error occurred. Please try again later.');
+        alert(`Server error: ${err.response?.data?.message || 'An unexpected error occurred'}`);
       } else {
         // For other errors
         alert(`Failed to get match: ${err.response?.data?.message || err.message}`);
@@ -102,7 +102,7 @@ const Dashboard = () => {
   
   // Determine what to show based on user state
   const renderStateContent = () => {
-    if (stateLoading) {
+    if (stateLoading || matchLoading) {
       return <StateMessage>Loading your status...</StateMessage>;
     }
     
@@ -118,7 +118,7 @@ const Dashboard = () => {
       return (
         <MatchCard>
           <h3>Your Current Match</h3>
-          {matchPartner && (
+          {matchPartner ? (
             <>
               <MatchName>{matchPartner.name}</MatchName>
               <MatchBio>{matchPartner.bio || 'No bio available'}</MatchBio>
@@ -127,6 +127,8 @@ const Dashboard = () => {
                 <Button onClick={handleViewConversation}>Open Conversation</Button>
               </ButtonGroup>
             </>
+          ) : (
+            <StateMessage>Loading match details...</StateMessage>
           )}
         </MatchCard>
       );
@@ -136,8 +138,8 @@ const Dashboard = () => {
       <NoMatchCard>
         <h3>No Active Match</h3>
         <p>Ready to discover your mindful match for today?</p>
-        <Button onClick={handleGetMatch} disabled={userState !== 'available'}>
-          {userState === 'available' ? 'Get Today\'s Match' : 'Not Available Yet'}
+        <Button onClick={handleGetMatch} disabled={userState !== 'available' || stateLoading}>
+          {stateLoading ? 'Finding Match...' : userState === 'available' ? 'Get Today\'s Match' : 'Not Available Yet'}
         </Button>
       </NoMatchCard>
     );

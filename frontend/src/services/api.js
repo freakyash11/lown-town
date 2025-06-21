@@ -47,17 +47,23 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       
       try {
+        console.log('Token expired, attempting to refresh...');
         // Force refresh token
         const token = await getCurrentUserToken(true);
         
         if (token) {
+          console.log('Token refreshed successfully');
           // Update header and retry
           originalRequest.headers.Authorization = `Bearer ${token}`;
           return api(originalRequest);
+        } else {
+          console.error('Token refresh failed - no token returned');
+          return Promise.reject(new Error('Authentication failed. Please log in again.'));
         }
       } catch (refreshError) {
         console.error('Token refresh error:', refreshError);
         // If refresh fails, let the component handle the error
+        return Promise.reject(refreshError);
       }
     }
     
