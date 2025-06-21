@@ -1,6 +1,6 @@
 const { initializeApp } = require('firebase/app');
-const { getAuth, createUserWithEmailAndPassword, updateProfile } = require('firebase/auth');
-const { getFirestore, doc, setDoc } = require('firebase/firestore');
+const { getAuth, createUserWithEmailAndPassword, updateProfile, signInWithEmailAndPassword } = require('firebase/auth');
+const { getFirestore, doc, setDoc, getDoc } = require('firebase/firestore');
 
 // Firebase configuration
 const firebaseConfig = {
@@ -49,6 +49,35 @@ module.exports = async (req, res) => {
 
       if (!email || !password || !name) {
         return res.status(400).json({ message: 'Email, password, and name are required' });
+      }
+
+      // Check if user already exists
+      try {
+        // Try to sign in with email to check if it exists
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        if (userCredential) {
+          // If we get here, the user exists and the password is correct
+          // We should sign out immediately
+          await auth.signOut();
+          
+          // Return a specific error for existing user with correct password
+          return res.status(400).json({ 
+            message: 'Account already exists. Please login instead.',
+            code: 'auth/email-already-in-use',
+            redirectTo: '/login'
+          });
+        }
+      } catch (checkError) {
+        // If error is auth/user-not-found, the email doesn't exist, which is good
+        // If error is auth/wrong-password, the email exists but password is wrong
+        if (checkError.code === 'auth/wrong-password') {
+          return res.status(400).json({ 
+            message: 'Account with this email already exists. Please use a different email or reset your password.',
+            code: 'auth/email-already-in-use',
+            redirectTo: '/login'
+          });
+        }
+        // For auth/user-not-found, we continue with registration
       }
 
       // Default values for personality traits
@@ -130,7 +159,8 @@ module.exports = async (req, res) => {
         stateTimestamps: {
           availableForMatchingSince: new Date()
         },
-        createdAt: new Date()
+        createdAt: new Date(),
+        needsOnboarding: true
       };
 
       // Save user data to Firestore
@@ -141,11 +171,37 @@ module.exports = async (req, res) => {
         name: userData.name,
         email: userData.email,
         userState: userData.userState,
-        token: idToken
+        token: idToken,
+        redirectTo: '/onboarding',
+        needsOnboarding: true
       });
     } catch (error) {
       console.error('Registration error:', error);
-      return res.status(500).json({ message: 'Registration failed', error: error.message });
+      
+      // Handle specific Firebase errors
+      if (error.code === 'auth/email-already-in-use') {
+        return res.status(400).json({ 
+          message: 'Email already in use. Please use a different email or login.',
+          code: error.code,
+          redirectTo: '/login'
+        });
+      } else if (error.code === 'auth/weak-password') {
+        return res.status(400).json({ 
+          message: 'Password is too weak. Please use a stronger password.',
+          code: error.code
+        });
+      } else if (error.code === 'auth/invalid-email') {
+        return res.status(400).json({ 
+          message: 'Invalid email address format.',
+          code: error.code
+        });
+      }
+      
+      return res.status(500).json({ 
+        message: 'Registration failed', 
+        error: error.message,
+        code: error.code || 'unknown-error'
+      });
     }
   }
 

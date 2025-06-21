@@ -65,9 +65,18 @@ export const AuthProvider = ({ children }) => {
         userData.name
       );
       
-      setCurrentUser(data);
+      // Only set current user if registration was successful
+      if (data && !data.error) {
+        setCurrentUser(data);
+      }
+      
       return data;
     } catch (err) {
+      // Handle redirects in the error
+      if (err.redirectTo || (err.response?.data?.redirectTo)) {
+        throw err; // Pass the error with redirect info to the component
+      }
+      
       setError(err.message || 'Registration failed');
       throw err;
     }
@@ -143,6 +152,7 @@ export const AuthProvider = ({ children }) => {
         const updatedUser = {
           ...prevUser,
           ...data,
+          needsOnboarding: false, // Explicitly set needsOnboarding to false
           personalityTraits: data.personalityTraits || prevUser.personalityTraits,
           emotionalIntelligence: data.emotionalIntelligence || prevUser.emotionalIntelligence,
           relationshipValues: data.relationshipValues || prevUser.relationshipValues,

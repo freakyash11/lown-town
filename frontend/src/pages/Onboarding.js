@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../context/AuthContext';
@@ -47,8 +47,32 @@ const Onboarding = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { completeOnboarding } = useAuth();
+  const { currentUser, completeOnboarding } = useAuth();
   const navigate = useNavigate();
+  
+  // Check if user needs onboarding
+  useEffect(() => {
+    if (currentUser) {
+      // If the user doesn't need onboarding, redirect to dashboard
+      if (currentUser.needsOnboarding === false) {
+        navigate('/dashboard');
+      }
+      
+      // Pre-fill form data if available from user profile
+      if (currentUser.bio) {
+        setFormData(prevData => ({
+          ...prevData,
+          bio: currentUser.bio || prevData.bio,
+          personalityTraits: currentUser.personalityTraits || prevData.personalityTraits,
+          emotionalIntelligence: currentUser.emotionalIntelligence || prevData.emotionalIntelligence,
+          relationshipValues: currentUser.relationshipValues || prevData.relationshipValues,
+          lifeGoals: currentUser.lifeGoals || prevData.lifeGoals,
+          communicationStyle: currentUser.communicationStyle || prevData.communicationStyle,
+          interests: currentUser.interests || prevData.interests
+        }));
+      }
+    }
+  }, [currentUser, navigate]);
   
   // Interest options
   const interestOptions = [

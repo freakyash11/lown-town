@@ -59,12 +59,30 @@ export const registerWithEmailAndPassword = async (email, password, name) => {
     const data = await response.json();
     
     if (!response.ok) {
-      throw new Error(data.message || 'Registration failed');
+      // Sign out the user if registration in backend failed
+      await signOut(auth);
+      
+      // Throw error with data from backend
+      const error = new Error(data.message || 'Registration failed');
+      error.code = data.code;
+      error.response = { data };
+      throw error;
     }
     
     return data;
   } catch (error) {
     console.error('Registration error:', error);
+    
+    // If Firebase throws email-already-in-use error, handle it specially
+    if (error.code === 'auth/email-already-in-use') {
+      const customError = new Error('Email already in use. Please login instead.');
+      customError.code = error.code;
+      customError.redirectTo = '/login';
+      customError.response = { data: { redirectTo: '/login' } };
+      throw customError;
+    }
+    
+    // For other errors, pass them through
     throw error;
   }
 };

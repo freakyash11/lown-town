@@ -86,10 +86,31 @@ const Register = () => {
       // Remove confirmPassword from data sent to API
       const { confirmPassword, ...registrationData } = formData;
       
-      await register(registrationData);
-      navigate('/personality-quiz');
+      const userData = await register(registrationData);
+      
+      // Check if there's a specific redirect path in the response
+      if (userData && userData.redirectTo) {
+        navigate(userData.redirectTo);
+      } else if (userData && userData.needsOnboarding === false) {
+        // If user doesn't need onboarding, go to dashboard
+        navigate('/dashboard');
+      } else {
+        // Default redirect to onboarding
+        navigate('/onboarding');
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create an account');
+      // Check if there's a redirect in the error response
+      if (err.redirectTo || (err.response?.data?.redirectTo)) {
+        const redirectPath = err.redirectTo || err.response?.data?.redirectTo;
+        setError(`${err.message || 'Registration failed'} Redirecting to login...`);
+        
+        // Short delay before redirect to show the error message
+        setTimeout(() => {
+          navigate(redirectPath);
+        }, 2000);
+      } else {
+        setError(err.response?.data?.message || err.message || 'Failed to create an account');
+      }
       console.error('Registration error:', err);
     } finally {
       setLoading(false);
