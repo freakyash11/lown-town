@@ -13,14 +13,16 @@ const Match = () => {
   const [error, setError] = useState('');
   const [feedbackText, setFeedbackText] = useState('');
   const [showFeedback, setShowFeedback] = useState(false);
+  const [localMatch, setLocalMatch] = useState(null);
+  const [localPartner, setLocalPartner] = useState(null);
   const navigate = useNavigate();
   
   // Redirect if no match
   useEffect(() => {
-    if (!matchLoading && !currentMatch) {
+    if (!matchLoading && !currentMatch && !localMatch) {
       navigate('/dashboard');
     }
-  }, [currentMatch, matchLoading, navigate]);
+  }, [currentMatch, localMatch, matchLoading, navigate]);
   
   // Load match data
   useEffect(() => {
@@ -35,15 +37,15 @@ const Match = () => {
         const data = await matchService.getCurrentMatch();
         
         if (data && data.match && data.matchPartner) {
-          setMatch(data.match);
-          setPartner(data.matchPartner);
+          setLocalMatch(data.match);
+          setLocalPartner(data.matchPartner);
         } else {
           // Try to get a daily match if no current match
           try {
             const dailyData = await matchService.getDailyMatch();
             if (dailyData && dailyData.match && dailyData.matchPartner) {
-              setMatch(dailyData.match);
-              setPartner(dailyData.matchPartner);
+              setLocalMatch(dailyData.match);
+              setLocalPartner(dailyData.matchPartner);
             } else if (dailyData && dailyData.message) {
               setError(dailyData.message);
             }
@@ -80,12 +82,12 @@ const Match = () => {
   
   // Handle pin match
   const handlePinMatch = async () => {
-    if (!currentMatch) return;
+    if (!localMatch) return;
     
     try {
       setLoading(true);
       setError('');
-      await pinMatch(currentMatch._id);
+      await pinMatch(localMatch._id);
       // Success message or redirect
     } catch (err) {
       setError('Failed to pin match');
@@ -104,12 +106,12 @@ const Match = () => {
   
   // Handle unpin match
   const handleUnpinMatch = async () => {
-    if (!currentMatch) return;
+    if (!localMatch) return;
     
     try {
       setLoading(true);
       setError('');
-      await unpinMatch(currentMatch._id, { feedback: feedbackText });
+      await unpinMatch(localMatch._id, { feedback: feedbackText });
       navigate('/dashboard');
     } catch (err) {
       setError('Failed to unpin match');
@@ -139,8 +141,8 @@ const Match = () => {
   
   // Handle start conversation button click
   const handleStartConversation = () => {
-    if (currentMatch) {
-      navigate(`/conversation/${currentMatch._id}`);
+    if (localMatch) {
+      navigate(`/conversation/${localMatch._id}`);
     }
   };
   
@@ -161,7 +163,7 @@ const Match = () => {
     );
   }
   
-  if (!currentMatch || !matchPartner) {
+  if (!localMatch || !localPartner) {
     return (
       <Container>
         <ErrorMessage>No active match found</ErrorMessage>
@@ -178,15 +180,15 @@ const Match = () => {
       </Header>
       
       <MatchCard>
-        <MatchName>{matchPartner.name}</MatchName>
+        <MatchName>{localPartner.name}</MatchName>
         
-        <MatchBio>{matchPartner.bio || 'No bio available'}</MatchBio>
+        <MatchBio>{localPartner.bio || 'No bio available'}</MatchBio>
         
-        {matchPartner.interests && matchPartner.interests.length > 0 && (
+        {localPartner.interests && localPartner.interests.length > 0 && (
           <InterestsSection>
             <SectionTitle>Interests</SectionTitle>
             <InterestTags>
-              {matchPartner.interests.map((interest, index) => (
+              {localPartner.interests.map((interest, index) => (
                 <InterestTag key={index}>{interest}</InterestTag>
               ))}
             </InterestTags>
@@ -194,7 +196,7 @@ const Match = () => {
         )}
         
         <ButtonGroup>
-          {currentMatch.pinnedBy && currentMatch.pinnedBy.includes(currentUser?._id) ? (
+          {localMatch.pinnedBy && localMatch.pinnedBy.includes(currentUser?._id) ? (
             <>
               <Button onClick={handleStartConversation} disabled={loading}>
                 Start Conversation

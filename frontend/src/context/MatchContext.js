@@ -195,7 +195,9 @@ export const MatchProvider = ({ children }) => {
     pinMatch,
     unpinMatch,
     getMatchHistory,
-    getMatchFeedback
+    getMatchFeedback,
+    setCurrentMatch,
+    setMatchPartner
   };
 
   return (
