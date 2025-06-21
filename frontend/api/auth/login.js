@@ -100,9 +100,6 @@ module.exports = async (req, res) => {
       
       // Determine where to redirect the user
       let redirectTo = '/dashboard';
-      if (userData.needsOnboarding) {
-        redirectTo = '/onboarding';
-      }
       
       return res.status(200).json({
         _id: uid,

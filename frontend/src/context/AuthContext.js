@@ -140,9 +140,14 @@ export const AuthProvider = ({ children }) => {
     try {
       setError(null);
       console.log("AuthContext: Sending onboarding data to server", onboardingData);
+      console.log("AuthContext: API URL being used:", process.env.REACT_APP_API_URL || 'https://lown-town-dwky.vercel.app/api');
       
       // Get fresh token
-      const token = await getCurrentUserToken();
+      const token = await getCurrentUserToken(true);
+      console.log("AuthContext: Got fresh token:", token ? "Token received" : "No token");
+      
+      // Log the request that will be made
+      console.log("AuthContext: Making request to:", `${process.env.REACT_APP_API_URL || 'https://lown-town-dwky.vercel.app/api'}/auth/onboarding`);
       
       const { data } = await authService.completeOnboarding(onboardingData);
       console.log("AuthContext: Received response from server", data);
@@ -167,6 +172,17 @@ export const AuthProvider = ({ children }) => {
       return data;
     } catch (err) {
       console.error("AuthContext: Error completing onboarding", err);
+      console.error("AuthContext: Error details:", err.response?.data || "No response data");
+      
+      // If it's a network error, provide more details
+      if (err.message === 'Network Error') {
+        console.error('Network error details:', {
+          message: err.message,
+          stack: err.stack,
+          config: err.config
+        });
+      }
+      
       setError(err.response?.data?.message || 'Failed to complete onboarding');
       throw err;
     }

@@ -41,8 +41,18 @@ if (!admin.apps.length) {
 
 module.exports = async (req, res) => {
   // Set CORS headers
+  const origin = req.headers.origin;
+  const allowedOrigins = ['http://localhost:3000', 'https://lown-town.vercel.app'];
+  
+  // Check if the origin is in our allowed list
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    // Or allow all origins as a fallback
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',

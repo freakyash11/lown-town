@@ -145,11 +145,24 @@ const Onboarding = () => {
     try {
       setError('');
       setLoading(true);
+      console.log('Onboarding: Submitting data to server...');
+      console.log('Onboarding: API URL being used:', process.env.REACT_APP_API_URL || 'https://lown-town-dwky.vercel.app/api');
       await completeOnboarding(formData);
+      console.log('Onboarding: Successfully completed onboarding');
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to complete onboarding');
       console.error('Onboarding error:', err);
+      console.error('Onboarding error details:', err.response?.data || 'No response data');
+      
+      // If it's a network error, provide more details
+      if (err.message === 'Network Error') {
+        console.error('Network error details:', {
+          message: err.message,
+          stack: err.stack,
+          config: err.config
+        });
+      }
     } finally {
       setLoading(false);
     }
