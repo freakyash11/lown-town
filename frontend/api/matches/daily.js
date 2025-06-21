@@ -1,5 +1,15 @@
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, query, where, getDocs, doc, getDoc } = require('firebase/firestore');
+const { 
+  getFirestore, 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  getDoc, 
+  addDoc, 
+  serverTimestamp 
+} = require('firebase/firestore');
 const admin = require('firebase-admin');
 
 // Firebase configuration
@@ -114,6 +124,50 @@ module.exports = async (req, res) => {
       
       const currentUser = userDoc.data();
       
+      // Check if user already has an active match
+      const matchesRef = collection(db, 'matches');
+      const activeMatchQuery = query(
+        matchesRef,
+        where('users', 'array-contains', uid),
+        where('status', '==', 'active')
+      );
+      
+      const activeMatchSnapshot = await getDocs(activeMatchQuery);
+      
+      if (!activeMatchSnapshot.empty) {
+        // User already has an active match
+        let activeMatch = null;
+        let matchPartner = null;
+        
+        // Get the first active match
+        activeMatchSnapshot.forEach(doc => {
+          activeMatch = {
+            _id: doc.id,
+            ...doc.data()
+          };
+        });
+        
+        // Get the match partner
+        const matchPartnerId = activeMatch.users.find(id => id !== uid);
+        const matchPartnerDoc = await getDoc(doc(db, 'users', matchPartnerId));
+        
+        if (matchPartnerDoc.exists()) {
+          const matchPartnerData = matchPartnerDoc.data();
+          matchPartner = {
+            _id: matchPartnerId,
+            name: matchPartnerData.name,
+            bio: matchPartnerData.bio,
+            interests: matchPartnerData.interests
+          };
+        }
+        
+        return res.status(200).json({
+          message: 'You already have an active match',
+          match: activeMatch,
+          matchPartner: matchPartner
+        });
+      }
+      
       // Find potential matches
       const usersRef = collection(db, 'users');
       let matchQuery;
@@ -157,17 +211,44 @@ module.exports = async (req, res) => {
       
       const dailyMatch = potentialMatches[0];
       
-      // Return only necessary data
-      return res.status(200).json({
-        _id: dailyMatch._id,
-        name: dailyMatch.name,
-        bio: dailyMatch.bio,
-        interests: dailyMatch.interests,
+      // Create a new match in Firestore
+      const newMatch = {
+        users: [uid, dailyMatch._id],
+        status: 'active',
+        createdAt: serverTimestamp(),
         compatibilityScore: dailyMatch.compatibilityScore,
-        dateMatched: new Date()
+        pinnedBy: []
+      };
+      
+      const matchRef = await addDoc(collection(db, 'matches'), newMatch);
+      
+      // Return match data
+      return res.status(200).json({
+        match: {
+          _id: matchRef.id,
+          ...newMatch,
+          createdAt: new Date()
+        },
+        matchPartner: {
+          _id: dailyMatch._id,
+          name: dailyMatch.name,
+          bio: dailyMatch.bio,
+          interests: dailyMatch.interests
+        }
       });
     } catch (error) {
       console.error('Get daily match error:', error);
+      
+      // If token verification fails, return 401
+      if (error.code === 'auth/id-token-expired' || 
+          error.code === 'auth/id-token-revoked' ||
+          error.code === 'auth/invalid-id-token') {
+        return res.status(401).json({ 
+          message: 'Authentication token expired or invalid', 
+          code: error.code 
+        });
+      }
+      
       return res.status(500).json({ message: 'Server error', error: error.message });
     }
   }

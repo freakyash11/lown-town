@@ -12,15 +12,44 @@ const api = axios.create({
   }
 });
 
+// Track if we're currently refreshing the token
+let isRefreshingToken = false;
+let tokenRefreshPromise = null;
+
+// Function to get a fresh token
+const getFreshToken = async () => {
+  if (isRefreshingToken) {
+    return tokenRefreshPromise;
+  }
+  
+  isRefreshingToken = true;
+  tokenRefreshPromise = getCurrentUserToken(true); // Force refresh
+  
+  try {
+    const token = await tokenRefreshPromise;
+    return token;
+  } finally {
+    isRefreshingToken = false;
+    tokenRefreshPromise = null;
+  }
+};
+
 // Add request interceptor to include Firebase auth token in requests
 api.interceptors.request.use(
   async (config) => {
     try {
-      // Get fresh token from Firebase
-      const token = await getCurrentUserToken();
+      // Get token from localStorage first for speed
+      let token = localStorage.getItem('userToken');
+      
+      // If no token in localStorage or this is an auth endpoint, get fresh token
+      if (!token || config.url.includes('/auth/')) {
+        token = await getFreshToken();
+      }
       
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+        // Update token in localStorage
+        localStorage.setItem('userToken', token);
       }
     } catch (error) {
       console.error('Error getting Firebase token:', error);
@@ -33,14 +62,46 @@ api.interceptors.request.use(
 // Add response interceptor to handle authentication errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If error is 401 and we haven't tried to refresh the token yet
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Try to get a fresh token
+        const token = await getFreshToken();
+        
+        if (token) {
+          // Update the token in the request
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          // Update token in localStorage
+          localStorage.setItem('userToken', token);
+          // Retry the request
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
+        
+        // If token refresh fails, redirect to login
+        if (window.location.pathname !== '/login') {
+          console.log('Redirecting to login due to authentication failure');
+          window.location.href = '/login';
+        }
+      }
+    }
+    
+    // For other errors, or if token refresh failed
     if (error.response && error.response.status === 401) {
       console.error('Authentication error:', error.response.data);
       // Redirect to login if not already there
       if (window.location.pathname !== '/login') {
+        console.log('Redirecting to login due to authentication failure');
         window.location.href = '/login';
       }
     }
+    
     return Promise.reject(error);
   }
 );

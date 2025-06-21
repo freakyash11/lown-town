@@ -52,7 +52,16 @@ const Dashboard = () => {
       }
     } catch (err) {
       console.error('Error getting daily match:', err);
-      alert(`Failed to get match: ${err.response?.data?.message || err.message}`);
+      
+      // Check if it's an authentication error
+      if (err.response?.status === 401) {
+        alert('Your session has expired. Please log in again.');
+        logout();
+        navigate('/login');
+      } else {
+        // For other errors
+        alert(`Failed to get match: ${err.response?.data?.message || err.message}`);
+      }
     }
   };
   

@@ -201,14 +201,15 @@ export const getCurrentUser = () => {
 
 /**
  * Get current user token
+ * @param {boolean} forceRefresh - Whether to force refresh the token
  * @returns {Promise<string|null>} ID token or null
  */
-export const getCurrentUserToken = async () => {
+export const getCurrentUserToken = async (forceRefresh = false) => {
   try {
     const user = auth.currentUser;
     if (!user) return null;
     
-    return await user.getIdToken(true); // Force refresh
+    return await user.getIdToken(forceRefresh); // Force refresh if requested
   } catch (error) {
     console.error('Get token error:', error);
     return null;
