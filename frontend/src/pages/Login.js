@@ -15,16 +15,12 @@ const Login = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (currentUser) {
-      // Check if user has completed personality quiz
-      if (currentUser.personalityTraits === undefined || 
-          currentUser.emotionalIntelligence === undefined || 
-          currentUser.relationshipValues === undefined || 
-          currentUser.lifeGoals === undefined || 
-          currentUser.communicationStyle === undefined) {
-        console.log("User needs to complete personality quiz");
-        navigate('/personality-quiz');
+      // Check if user needs onboarding
+      if (currentUser.needsOnboarding) {
+        console.log("User needs to complete onboarding");
+        navigate('/onboarding');
       } else {
-        console.log("User has completed personality quiz, going to dashboard");
+        console.log("User has completed onboarding, going to dashboard");
         navigate('/dashboard');
       }
     }
@@ -36,20 +32,20 @@ const Login = () => {
     try {
       setError('');
       setLoading(true);
-      const user = await login({ email, password });
+      const userData = await login({ email, password });
       
-      // Check if user has completed personality quiz
-      if (user.personalityTraits === undefined || 
-          user.emotionalIntelligence === undefined || 
-          user.relationshipValues === undefined || 
-          user.lifeGoals === undefined || 
-          user.communicationStyle === undefined) {
-        navigate('/personality-quiz');
+      // Check if there's a specific redirect path in the response
+      if (userData && userData.redirectTo) {
+        navigate(userData.redirectTo);
+      } else if (userData && userData.needsOnboarding) {
+        // If user needs onboarding, go to onboarding page
+        navigate('/onboarding');
       } else {
+        // Default redirect to dashboard
         navigate('/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to log in');
+      setError(err.message || err.response?.data?.message || 'Failed to log in');
       console.error('Login error:', err);
     } finally {
       setLoading(false);

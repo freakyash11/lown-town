@@ -1,6 +1,6 @@
 const { initializeApp } = require('firebase/app');
 const { getAuth, signInWithEmailAndPassword } = require('firebase/auth');
-const { getFirestore, doc, getDoc } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
 
 // Firebase configuration
 const firebaseConfig = {
@@ -44,37 +44,88 @@ module.exports = async (req, res) => {
 
       // Sign in with Firebase Auth
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const firebaseUid = userCredential.user.uid;
-      
+      const user = userCredential.user;
+      const uid = user.uid;
+
       // Get ID token
-      const idToken = await userCredential.user.getIdToken();
+      const idToken = await user.getIdToken();
+
+      // Check if user exists in Firestore
+      const userDoc = await getDoc(doc(db, 'users', uid));
       
-      // Get additional user data from Firestore
-      const userDoc = await getDoc(doc(db, 'users', firebaseUid));
-      
+      // If user doesn't exist in Firestore, create a basic profile
       if (!userDoc.exists()) {
-        return res.status(404).json({ message: 'User profile not found' });
+        console.log('User exists in Auth but not in Firestore. Creating Firestore record.');
+        
+        // Default values for personality traits
+        const defaultPersonalityTraits = {
+          openness: Math.floor(Math.random() * 5) + 5,
+          conscientiousness: Math.floor(Math.random() * 5) + 5,
+          extraversion: Math.floor(Math.random() * 5) + 5,
+          agreeableness: Math.floor(Math.random() * 5) + 5,
+          neuroticism: Math.floor(Math.random() * 5) + 5
+        };
+
+        // Create user data for Firestore
+        const userData = {
+          _id: uid,
+          email: user.email,
+          name: user.displayName || email.split('@')[0],
+          createdAt: new Date(),
+          userState: 'available',
+          needsOnboarding: true,
+          personalityTraits: defaultPersonalityTraits,
+          stateTimestamps: {
+            availableForMatchingSince: new Date()
+          }
+        };
+
+        // Save user data to Firestore
+        await setDoc(doc(db, 'users', uid), userData);
+        
+        // Return user data with token and redirect to onboarding
+        return res.status(200).json({
+          _id: uid,
+          name: userData.name,
+          email: userData.email,
+          userState: userData.userState,
+          token: idToken,
+          needsOnboarding: true,
+          redirectTo: '/onboarding'
+        });
       }
       
+      // User exists in Firestore, return user data
       const userData = userDoc.data();
-
+      
+      // Determine where to redirect the user
+      let redirectTo = '/dashboard';
+      if (userData.needsOnboarding) {
+        redirectTo = '/onboarding';
+      }
+      
       return res.status(200).json({
-        _id: firebaseUid,
+        _id: uid,
         name: userData.name,
         email: userData.email,
         userState: userData.userState,
-        personalityTraits: userData.personalityTraits,
-        emotionalIntelligence: userData.emotionalIntelligence,
-        relationshipValues: userData.relationshipValues,
-        lifeGoals: userData.lifeGoals,
-        communicationStyle: userData.communicationStyle,
-        interests: userData.interests,
-        bio: userData.bio,
-        token: idToken
+        token: idToken,
+        needsOnboarding: userData.needsOnboarding,
+        redirectTo: redirectTo
       });
     } catch (error) {
       console.error('Login error:', error);
-      return res.status(401).json({ message: 'Invalid email or password', error: error.message });
+      
+      // Handle specific Firebase errors
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        return res.status(401).json({ message: 'Invalid email or password' });
+      } else if (error.code === 'auth/too-many-requests') {
+        return res.status(429).json({ message: 'Too many login attempts. Please try again later.' });
+      } else if (error.code === 'auth/user-disabled') {
+        return res.status(403).json({ message: 'This account has been disabled.' });
+      }
+      
+      return res.status(500).json({ message: 'Login failed', error: error.message });
     }
   }
 

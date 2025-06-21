@@ -60,11 +60,68 @@ module.exports = async (req, res) => {
           // We should sign out immediately
           await auth.signOut();
           
-          // Return a specific error for existing user with correct password
-          return res.status(400).json({ 
-            message: 'Account already exists. Please login instead.',
-            code: 'auth/email-already-in-use',
-            redirectTo: '/login'
+          // Check if user exists in Firestore
+          const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+          
+          if (!userDoc.exists()) {
+            // User exists in Auth but not in Firestore, create Firestore record
+            console.log('User exists in Auth but not in Firestore. Creating Firestore record.');
+            
+            // Default values for personality traits
+            const defaultPersonalityTraits = {
+              openness: Math.floor(Math.random() * 5) + 5,
+              conscientiousness: Math.floor(Math.random() * 5) + 5,
+              extraversion: Math.floor(Math.random() * 5) + 5,
+              agreeableness: Math.floor(Math.random() * 5) + 5,
+              neuroticism: Math.floor(Math.random() * 5) + 3
+            };
+            
+            // Create user data for Firestore
+            const userData = {
+              _id: userCredential.user.uid,
+              email: userCredential.user.email,
+              name: userCredential.user.displayName || name,
+              dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : new Date(),
+              gender: gender || 'not specified',
+              interestedIn: interestedIn || 'not specified',
+              location: location || { type: 'Point', coordinates: [0, 0] },
+              bio: bio || `Hi, I'm ${name}!`,
+              personalityTraits: defaultPersonalityTraits,
+              userState: 'available',
+              stateTimestamps: {
+                availableForMatchingSince: new Date()
+              },
+              createdAt: new Date(),
+              needsOnboarding: true
+            };
+            
+            // Save user data to Firestore
+            await setDoc(doc(db, 'users', userCredential.user.uid), userData);
+            
+            // Get ID token
+            const idToken = await userCredential.user.getIdToken();
+            
+            // Return user data with token and redirect to onboarding
+            return res.status(200).json({
+              _id: userCredential.user.uid,
+              name: userData.name,
+              email: userData.email,
+              userState: userData.userState,
+              token: idToken,
+              redirectTo: '/onboarding',
+              needsOnboarding: true
+            });
+          }
+          
+          // User exists in both Auth and Firestore, return login success
+          return res.status(200).json({ 
+            message: 'Account already exists. Logging you in.',
+            _id: userCredential.user.uid,
+            name: userDoc.data().name,
+            email: userDoc.data().email,
+            token: await userCredential.user.getIdToken(),
+            redirectTo: userDoc.data().needsOnboarding ? '/onboarding' : '/dashboard',
+            needsOnboarding: userDoc.data().needsOnboarding
           });
         }
       } catch (checkError) {
