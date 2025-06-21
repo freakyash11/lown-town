@@ -1,0 +1,199 @@
+import { 
+  getAuth, 
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+  sendPasswordResetEmail,
+  onAuthStateChanged
+} from 'firebase/auth';
+import { initializeApp } from 'firebase/app';
+
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyBUFzsdjtOCpEZyPIrD3_RvmBmA4Xee9OE",
+  authDomain: "litamor-8ce39.firebaseapp.com",
+  projectId: "litamor-8ce39",
+  storageBucket: "litamor-8ce39.firebasestorage.app",
+  messagingSenderId: "194822139322",
+  appId: "1:194822139322:web:6aa10d71e51f36e4c7c183",
+  measurementId: "G-5RXJZCR4DQ"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+/**
+ * Register a new user with email and password
+ * @param {string} email - User email
+ * @param {string} password - User password
+ * @param {string} name - User name
+ * @returns {Promise<object>} User data and token
+ */
+export const registerWithEmailAndPassword = async (email, password, name) => {
+  try {
+    // Create user in Firebase Auth
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    
+    // Update profile with name
+    await updateProfile(userCredential.user, { displayName: name });
+    
+    // Get token
+    const token = await userCredential.user.getIdToken();
+    
+    // Register user in backend
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        name
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Registration failed');
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Registration error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Sign in user with email and password
+ * @param {string} email - User email
+ * @param {string} password - User password
+ * @returns {Promise<object>} User data and token
+ */
+export const login = async (email, password) => {
+  try {
+    // Sign in with Firebase Auth
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    
+    // Get token
+    const token = await userCredential.user.getIdToken();
+    
+    // Login to backend
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ email, password })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Login failed');
+    }
+    
+    // Store token in local storage
+    localStorage.setItem('userToken', token);
+    
+    return data;
+  } catch (error) {
+    console.error('Login error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Sign out user
+ * @returns {Promise<void>}
+ */
+export const logout = async () => {
+  try {
+    // Get token before signing out
+    const token = await auth.currentUser?.getIdToken();
+    
+    // Sign out from Firebase Auth
+    await signOut(auth);
+    
+    // Clear local storage
+    localStorage.removeItem('userToken');
+    
+    // Logout from backend
+    if (token) {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Logout error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Send password reset email
+ * @param {string} email - User email
+ * @returns {Promise<void>}
+ */
+export const resetPassword = async (email) => {
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (error) {
+    console.error('Password reset error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get current authenticated user
+ * @returns {object|null} Current user or null
+ */
+export const getCurrentUser = () => {
+  return auth.currentUser;
+};
+
+/**
+ * Get current user token
+ * @returns {Promise<string|null>} ID token or null
+ */
+export const getCurrentUserToken = async () => {
+  try {
+    const user = auth.currentUser;
+    if (!user) return null;
+    
+    return await user.getIdToken(true); // Force refresh
+  } catch (error) {
+    console.error('Get token error:', error);
+    return null;
+  }
+};
+
+/**
+ * Listen for auth state changes
+ * @param {function} callback - Callback function with user object
+ * @returns {function} Unsubscribe function
+ */
+export const onAuthChange = (callback) => {
+  return onAuthStateChanged(auth, callback);
+};
+
+export default {
+  auth,
+  registerWithEmailAndPassword,
+  login,
+  logout,
+  resetPassword,
+  getCurrentUser,
+  getCurrentUserToken,
+  onAuthChange
+}; 
