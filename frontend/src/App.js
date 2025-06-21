@@ -29,8 +29,8 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Onboarded route component - ensures user has completed onboarding
-const OnboardedRoute = ({ children }) => {
+// Dashboard route component - ensures user has completed onboarding
+const DashboardRoute = ({ children }) => {
   const { currentUser, loading } = useAuth();
 
   if (loading) {
@@ -42,7 +42,7 @@ const OnboardedRoute = ({ children }) => {
   }
 
   // Check if user needs onboarding
-  if (currentUser.needsOnboarding === true) {
+  if (currentUser.needsOnboarding) {
     console.log("User needs onboarding, redirecting");
     return <Navigate to="/onboarding" />;
   }
@@ -74,9 +74,9 @@ function App() {
               <Route 
                 path="/dashboard" 
                 element={
-                  <ProtectedRoute>
+                  <DashboardRoute>
                     <Dashboard />
-                  </ProtectedRoute>
+                  </DashboardRoute>
                 } 
               />
               <Route 

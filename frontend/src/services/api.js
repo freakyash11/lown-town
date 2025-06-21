@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getCurrentUserToken } from './firebaseAuth';
 
 // API base URL
-const API_URL = process.env.REACT_APP_API_URL || '';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 // Create axios instance
 const api = axios.create({
@@ -75,37 +75,37 @@ api.interceptors.response.use(
 export const authService = {
   // Register user
   register: (userData) => {
-    return api.post('/api/auth/register', userData);
+    return api.post('/auth/register', userData);
   },
   
   // Login user
   login: (credentials) => {
-    return api.post('/api/auth/login', credentials);
+    return api.post('/auth/login', credentials);
   },
   
   // Get user profile
   getProfile: () => {
-    return api.get('/api/auth/profile');
+    return api.get('/auth/profile');
   },
   
   // Update user profile
   updateProfile: (userData) => {
-    return api.put('/api/auth/profile', userData);
+    return api.put('/auth/profile', userData);
   },
   
   // Complete onboarding
   completeOnboarding: (onboardingData) => {
-    return api.post('/api/auth/onboarding', onboardingData);
+    return api.post('/auth/onboarding', onboardingData);
   },
   
   // Forgot password
   forgotPassword: (email) => {
-    return api.post('/api/auth/forgot-password', { email });
+    return api.post('/auth/forgot-password', { email });
   },
   
   // Logout
   logout: () => {
-    return api.post('/api/auth/logout');
+    return api.post('/auth/logout');
   }
 };
 
@@ -114,7 +114,7 @@ export const matchService = {
   // Get daily match
   getDailyMatch: async () => {
     try {
-      const response = await api.get('/api/matches/daily');
+      const response = await api.get('/matches/daily');
       return response.data;
     } catch (error) {
       console.error('Get daily match error:', error);
@@ -125,7 +125,7 @@ export const matchService = {
   // Get current match
   getCurrentMatch: async () => {
     try {
-      const response = await api.get('/api/matches/current');
+      const response = await api.get('/matches/current');
       return response.data;
     } catch (error) {
       console.error('Get current match error:', error);
@@ -136,7 +136,7 @@ export const matchService = {
   // Get match history
   getMatchHistory: async () => {
     try {
-      const response = await api.get('/api/matches/history');
+      const response = await api.get('/matches/history');
       return response.data;
     } catch (error) {
       console.error('Get match history error:', error);
@@ -147,7 +147,7 @@ export const matchService = {
   // Pin match
   pinMatch: async (matchId) => {
     try {
-      const response = await api.put(`/api/matches/pin?matchId=${matchId}`);
+      const response = await api.put(`/matches/pin?matchId=${matchId}`);
       return response.data;
     } catch (error) {
       console.error('Pin match error:', error);
@@ -158,7 +158,7 @@ export const matchService = {
   // Unpin match
   unpinMatch: async (matchId, feedback) => {
     try {
-      const response = await api.put(`/api/matches/unpin?matchId=${matchId}`, feedback);
+      const response = await api.put(`/matches/unpin?matchId=${matchId}`, feedback);
       return response.data;
     } catch (error) {
       console.error('Unpin match error:', error);
@@ -169,7 +169,7 @@ export const matchService = {
   // Get match feedback
   getMatchFeedback: async (matchId) => {
     try {
-      const response = await api.get(`/api/matches/${matchId}/feedback`);
+      const response = await api.get(`/matches/${matchId}/feedback`);
       return response.data;
     } catch (error) {
       console.error('Get match feedback error:', error);
@@ -183,7 +183,7 @@ export const messageService = {
   // Get messages for match
   getMessages: async (matchId) => {
     try {
-      const response = await api.get(`/api/messages/${matchId}`);
+      const response = await api.get(`/messages/${matchId}`);
       return response.data;
     } catch (error) {
       console.error('Get messages error:', error);
@@ -194,7 +194,7 @@ export const messageService = {
   // Send message
   sendMessage: async (matchId, messageData) => {
     try {
-      const response = await api.post(`/api/messages/${matchId}`, messageData);
+      const response = await api.post(`/messages/${matchId}`, messageData);
       return response.data;
     } catch (error) {
       console.error('Send message error:', error);
@@ -205,7 +205,7 @@ export const messageService = {
   // Mark message as read
   markAsRead: async (userId) => {
     try {
-      const response = await api.put(`/api/messages/read/${userId}`);
+      const response = await api.put(`/messages/read/${userId}`);
       return response.data;
     } catch (error) {
       console.error('Mark message as read error:', error);
@@ -216,7 +216,7 @@ export const messageService = {
   // Get unread message count
   getUnreadCount: async () => {
     try {
-      const response = await api.get('/api/messages/unread');
+      const response = await api.get('/messages/unread');
       return response.data;
     } catch (error) {
       console.error('Get unread message count error:', error);
@@ -227,7 +227,7 @@ export const messageService = {
   // Check video call status
   checkVideoCallStatus: async (userId) => {
     try {
-      const response = await api.get(`/api/messages/video-status/${userId}`);
+      const response = await api.get(`/messages/video-status/${userId}`);
       return response.data;
     } catch (error) {
       console.error('Check video call status error:', error);
@@ -241,7 +241,7 @@ export const userService = {
   // Get user state
   getUserState: async () => {
     try {
-      const response = await api.get('/api/users/state');
+      const response = await api.get('/users/state');
       return response.data;
     } catch (error) {
       console.error('Get user state error:', error);

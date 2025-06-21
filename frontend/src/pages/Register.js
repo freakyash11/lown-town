@@ -88,16 +88,8 @@ const Register = () => {
       
       const userData = await register(registrationData);
       
-      // Check if there's a specific redirect path in the response
-      if (userData && userData.redirectTo) {
-        navigate(userData.redirectTo);
-      } else if (userData && userData.needsOnboarding === false) {
-        // If user doesn't need onboarding, go to dashboard
-        navigate('/dashboard');
-      } else {
-        // Default redirect to onboarding
-        navigate('/onboarding');
-      }
+      // After successful registration, always redirect to onboarding
+      navigate('/onboarding');
     } catch (err) {
       // Check if there's a redirect in the error response
       if (err.redirectTo || (err.response?.data?.redirectTo)) {

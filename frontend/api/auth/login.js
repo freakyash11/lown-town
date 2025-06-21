@@ -91,7 +91,7 @@ module.exports = async (req, res) => {
           userState: userData.userState,
           token: idToken,
           needsOnboarding: true,
-          redirectTo: '/onboarding'
+          redirectTo: '/dashboard'
         });
       }
       
