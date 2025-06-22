@@ -18,10 +18,17 @@ const corsWithOptions = cors({
 const handlePreflight = (req, res, next) => {
   // Handle OPTIONS method
   if (req.method === 'OPTIONS') {
-    res.header('Access-Control-Allow-Origin', 'https://lown-town.vercel.app');
+    // Set the specific origin instead of wildcard to allow credentials
+    const origin = req.headers.origin;
+    if (origin === 'https://lown-town.vercel.app' || 
+        origin === 'http://localhost:3000' || 
+        origin === 'http://localhost:3001') {
+      res.header('Access-Control-Allow-Origin', origin);
+    }
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-    res.header('Access-Control-Allow-Credentials', true);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Vary', 'Origin');
     return res.status(204).end();
   }
   next();

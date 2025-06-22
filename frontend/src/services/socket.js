@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'https://lown-town-dwky.vercel.app/api';
+const SOCKET_URL = 'https://lown-town-dwky.vercel.app';
 
 let socket;
 

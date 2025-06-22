@@ -19,24 +19,55 @@ const io = socketIO(server, {
       'http://localhost:3001',
       'https://lown-town.vercel.app'
     ],
-    methods: ['GET', 'POST'],
-    credentials: true
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
   }
 });
 
 // Middleware
 app.use(cors({
-  origin: [
-    process.env.CLIENT_URL || 'http://localhost:3000', 
-    'http://localhost:3001',
-    'https://lown-town.vercel.app'
-  ],
+  origin: function(origin, callback) {
+    const allowedOrigins = [
+      process.env.CLIENT_URL || 'http://localhost:3000', 
+      'http://localhost:3001',
+      'https://lown-town.vercel.app'
+    ];
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, origin);
+    } else {
+      callback(new Error('CORS not allowed'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  credentials: true
+  credentials: true,
+  optionsSuccessStatus: 204
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Add CORS headers to all responses
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    process.env.CLIENT_URL || 'http://localhost:3000', 
+    'http://localhost:3001',
+    'https://lown-town.vercel.app'
+  ];
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Vary', 'Origin');
+  next();
+});
 
 // Health check route
 app.get('/api/health', (req, res) => {
