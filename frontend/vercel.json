@@ -19,7 +19,13 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://lown-town-dwky.vercel.app/api"
+      "destination": "https://lown-town-dwky.vercel.app/api",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://lown-town.vercel.app" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" },
+        { "key": "Access-Control-Allow-Credentials", "value": "true" }
+      ]
     }
   ]
 }
