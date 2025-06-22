@@ -1,146 +1,76 @@
-const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, query, where, getDocs, doc, getDoc, limit } = require('firebase/firestore');
-const admin = require('firebase-admin');
-
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID,
-  measurementId: process.env.FIREBASE_MEASUREMENT_ID
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// Initialize Firebase Admin if not already initialized
-let adminApp;
-if (!admin.apps.length) {
-  try {
-    // Try to initialize with service account JSON if available
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-      adminApp = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-    } else {
-      // Otherwise initialize with application default credentials
-      adminApp = admin.initializeApp({
-        projectId: process.env.FIREBASE_PROJECT_ID
-      });
-    }
-  } catch (error) {
-    console.error('Firebase Admin initialization error:', error);
-  }
-}
+const { doc, getDoc } = require('firebase/firestore');
+const { db, setCorsHeaders, handlePreflight, verifyAuthToken } = require('../utils/firebase');
 
 module.exports = async (req, res) => {
   // Set CORS headers
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
-  );
+  setCorsHeaders(res);
 
   // Handle OPTIONS request (preflight)
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (handlePreflight(req, res)) {
+    return;
   }
 
-  // Handle GET request for current match
-  if (req.method === 'GET') {
-    try {
-      // Get token from authorization header
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ message: 'Not authorized, no token' });
-      }
+  // Only allow GET requests
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
 
-      const token = authHeader.split(' ')[1];
-      
-      // Verify Firebase ID token
-      const decodedToken = await admin.auth().verifyIdToken(token);
-      const uid = decodedToken.uid;
-      
-      console.log('Getting current match for user:', uid);
-      
-      // Get current user data
-      const userDoc = await getDoc(doc(db, 'users', uid));
-      
-      if (!userDoc.exists()) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-      
-      // Check if user has an active match
-      const matchesRef = collection(db, 'matches');
-      const activeMatchQuery = query(
-        matchesRef,
-        where('users', 'array-contains', uid),
-        where('status', '==', 'active'),
-        limit(1)
-      );
-      
-      const activeMatchSnapshot = await getDocs(activeMatchQuery);
-      
-      if (activeMatchSnapshot.empty) {
-        console.log('No active match found for user:', uid);
-        return res.status(200).json({ message: 'No active match found' });
-      }
-      
-      // Get the active match
-      let activeMatch = null;
-      activeMatchSnapshot.forEach(doc => {
-        activeMatch = {
-          _id: doc.id,
-          ...doc.data()
-        };
-      });
-      
-      console.log('Found active match:', activeMatch._id);
-      
-      // Get the match partner
-      const matchPartnerId = activeMatch.users.find(id => id !== uid);
-      const matchPartnerDoc = await getDoc(doc(db, 'users', matchPartnerId));
-      
-      if (!matchPartnerDoc.exists()) {
-        return res.status(404).json({ message: 'Match partner not found' });
-      }
-      
-      const matchPartnerData = matchPartnerDoc.data();
-      const matchPartner = {
-        _id: matchPartnerId,
-        name: matchPartnerData.name,
-        bio: matchPartnerData.bio || '',
-        interests: matchPartnerData.interests || []
-      };
-      
-      return res.status(200).json({
-        match: activeMatch,
-        matchPartner: matchPartner
-      });
-    } catch (error) {
-      console.error('Get current match error:', error);
-      
-      // If token verification fails, return 401
-      if (error.code === 'auth/id-token-expired' || 
-          error.code === 'auth/id-token-revoked' ||
-          error.code === 'auth/invalid-id-token') {
-        return res.status(401).json({ 
-          message: 'Authentication token expired or invalid', 
-          code: error.code 
-        });
-      }
-      
-      return res.status(500).json({ message: 'Server error', error: error.message });
+  try {
+    // Verify Firebase ID token
+    const decodedToken = await verifyAuthToken(req);
+    const uid = decodedToken.uid;
+    
+    // Get user data from Firestore
+    const userDoc = await getDoc(doc(db, 'users', uid));
+    
+    if (!userDoc.exists()) {
+      return res.status(404).json({ message: 'User not found' });
     }
+    
+    const userData = userDoc.data();
+    
+    // Check if user has a current match
+    if (!userData.currentMatch) {
+      return res.status(404).json({ message: 'No current match found' });
+    }
+    
+    // Get the match document
+    const matchDoc = await getDoc(doc(db, 'matches', userData.currentMatch));
+    
+    if (!matchDoc.exists()) {
+      return res.status(404).json({ message: 'Match not found' });
+    }
+    
+    const matchData = matchDoc.data();
+    
+    // Get the matched user ID (the one that's not the current user)
+    const matchedUserId = matchData.users[0] === uid ? matchData.users[1] : matchData.users[0];
+    
+    // Get the matched user's data
+    const matchedUserDoc = await getDoc(doc(db, 'users', matchedUserId));
+    
+    if (!matchedUserDoc.exists()) {
+      return res.status(404).json({ message: 'Matched user not found' });
+    }
+    
+    const matchedUserData = matchedUserDoc.data();
+    
+    // Return the match data with the matched user's information
+    return res.status(200).json({
+      _id: matchData._id,
+      matchDate: matchData.matchDate,
+      status: matchData.status,
+      compatibilityScore: matchData.compatibilityScore,
+      matchedUser: {
+        _id: matchedUserId,
+        name: matchedUserData.name,
+        bio: matchedUserData.bio,
+        interests: matchedUserData.interests,
+        personalityTraits: matchedUserData.personalityTraits
+      }
+    });
+  } catch (error) {
+    console.error('Get current match error:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
   }
-
-  // Handle unsupported methods
-  return res.status(405).json({ message: 'Method not allowed' });
 }; 

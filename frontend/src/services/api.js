@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getCurrentUserToken } from './firebaseAuth';
 
 // API base URL
-const API_URL = 'https://lown-town-dwky.vercel.app/api';
+const API_URL = '/api';
 
 // Create axios instance
 const api = axios.create({
