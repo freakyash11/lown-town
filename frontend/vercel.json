@@ -19,7 +19,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://lown-town-dwky.vercel.app/api/$1"
+      "destination": "https://lown-town-dwky.vercel.app/api"
     }
   ]
 }

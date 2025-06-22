@@ -24,48 +24,23 @@ const io = socketIO(server, {
   }
 });
 
-// CORS middleware first
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  const allowedOrigins = [
+// Middleware
+app.use(cors({
+  origin: [
     process.env.CLIENT_URL || 'http://localhost:3000', 
     'http://localhost:3001',
     'https://lown-town.vercel.app'
-  ];
-  
-  // Check if the origin is in our allowed list
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    // Or allow all origins as a fallback
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
-  
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
-  
-  next();
-});
-
-// Other middleware
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Health check route
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Server is running' });
-});
-
-// Debug route to check CORS
-app.options('*', (req, res) => {
-  console.log('OPTIONS request received');
-  res.status(204).end();
 });
 
 // Routes
